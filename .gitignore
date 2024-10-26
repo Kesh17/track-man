@@ -1,4 +1,6 @@
 bin
 bin/main
+obj
 .vscode
 *.dSYM
+build
