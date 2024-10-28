@@ -1,5 +1,6 @@
 #include "dijkstra.h"
 #include "raylib.h"
+#include <iso646.h>
 #include <stdbool.h>
 
 typedef struct {
@@ -11,7 +12,7 @@ typedef struct {
   const int font_size;
 } Window;
 
-typedef enum GameState { GAME_OVER, GAME_PLAY } GameState;
+typedef enum GameState { GAME_OVER, GAME_PLAY, GAME_PAUSE } GameState;
 
 typedef struct {
   Pos pos;
@@ -41,8 +42,7 @@ static void movement_logic(Entity *pos) {
   }
 }
 
-static bool collide(const int row, const int col, Entity *entity,
-                    Entity *entity2) {
+static bool wall_collision(const int row, const int col, Entity *entity) {
   if (entity->velocity.y == 1) {
     if (entity->pos.y >= col - 1) {
       printf("collide y(%d %d) (%f %f) row: %d col:%d\n", entity->pos.x,
@@ -71,6 +71,18 @@ static bool collide(const int row, const int col, Entity *entity,
       return true;
     }
   }
+
+  return false;
+}
+
+static bool food_collision(Pos *food, Entity *entity) {
+  if (food->x == entity->pos.x && food->y == entity->pos.y) {
+    return true;
+  }
+  return false;
+}
+
+static bool entity_collision(Entity *entity, Entity *entity2) {
   if (entity->pos.x == entity2->pos.x && entity->pos.y == entity2->pos.y) {
     printf("collide entities game over(%d %d) (%d %d)\n", entity->pos.x,
            entity->pos.y, entity2->pos.x, entity2->pos.y);
@@ -78,14 +90,9 @@ static bool collide(const int row, const int col, Entity *entity,
   }
   return false;
 }
-static bool food_collision(Pos *food, Entity *entity) {
-  if (food->x == entity->pos.x && food->y == entity->pos.y) {
-    return true;
-  }
-  return false;
-}
+
 int main(void) {
-  static const Window window = {600, 600, 40, 60, "pac-man", 25};
+  static const Window window = {800, 800, 40, 60, "pac-man", 25};
   InitWindow(window.width, window.height, window.title);
   SetTargetFPS(window.fps);
 
@@ -139,7 +146,7 @@ int main(void) {
   int frames = 0;
   static int score = 0;
 
-  const char instruction[] = "movement: (w, a, s, d)";
+  const char instruction[] = "pause: space, movement: (w, a, s, d)";
   const size_t size_instruction = sizeof(instruction) / sizeof(char);
   static const int differ_row =
       size_instruction /
@@ -147,65 +154,111 @@ int main(void) {
 
   Pos food = {5, 5};
 
+  GameState game_state = GAME_PLAY;
+
   while (!WindowShouldClose()) {
+
     // variable update
-    float delta_time = GetFrameTime();
-    frames++;
+    if (game_state == GAME_PLAY) {
+      if (IsKeyPressed(KEY_SPACE)) {
+        game_state = GAME_PAUSE;
+      }
+      float delta_time = GetFrameTime();
+      frames++;
 
-    enemy_movement_timer += delta_time;
-    movement_logic(&destination);
+      enemy_movement_timer += delta_time;
+      movement_logic(&destination);
 
-    if (collide(row, col, &destination, &enemy)) {
-      destination.velocity = (Vector2){0, 0};
-    }
-    if (food_collision(&food, &destination)) {
-      food = food_position_generator(row, col);
-      score++;
-    }
+      if (wall_collision(row, col, &destination)) {
+        destination.velocity = (Vector2){0, 0};
+      }
 
-    if (enemy_movement_timer >= enemy_movement_delay &&
-        enemy_arr_index < return_index) {
-      enemy.pos = return_pos[enemy_arr_index];
-      enemy_arr_index++;
-      enemy_movement_timer = 0.0f;
-    }
+      if (entity_collision(&destination, &enemy)) {
+        game_state = GAME_OVER;
+      }
 
-    if (frames % 5 == 0) {
-      destination.pos.x += destination.velocity.x;
-      destination.pos.y += destination.velocity.y;
-    }
+      if (food_collision(&food, &destination)) {
+        food = food_position_generator(row, col);
+        score++;
+      }
 
-    if (enemy.pos.x == previous_position_destination.x &&
-        enemy.pos.y == previous_position_destination.y) {
-      enemy_arr_index = 0;
-      dijkstra(djcomp_matrix, row, col, adjacency_matrix, &enemy.pos, pos,
-               previous);
-      return_pos = path(new_col, pos, &destination.pos, previous, &enemy.pos,
-                        &return_index);
-      previous_position_destination = destination.pos;
+      if (enemy_movement_timer >= enemy_movement_delay &&
+          enemy_arr_index < return_index) {
+        enemy.pos = return_pos[enemy_arr_index];
+        enemy_arr_index++;
+        enemy_movement_timer = 0.0f;
+      }
+
+      if (frames % 5 == 0) {
+        destination.pos.x += destination.velocity.x;
+        destination.pos.y += destination.velocity.y;
+      }
+
+      if (enemy.pos.x == previous_position_destination.x &&
+          enemy.pos.y == previous_position_destination.y) {
+        enemy_arr_index = 0;
+        dijkstra(djcomp_matrix, row, col, adjacency_matrix, &enemy.pos, pos,
+                 previous);
+        return_pos = path(new_col, pos, &destination.pos, previous, &enemy.pos,
+                          &return_index);
+        previous_position_destination = destination.pos;
+      }
+    } else if (game_state == GAME_OVER) {
+      if (IsKeyPressed(KEY_ENTER)) {
+        enemy = (Entity){{0, 0}, {0, 0}};
+        dijkstra(djcomp_matrix, row, col, adjacency_matrix, &enemy.pos, pos,
+                 previous);
+        destination = (Entity){{8, 8}, {0, 0}};
+        return_pos = path(new_col, pos, &destination.pos, previous, &enemy.pos,
+                          &return_index);
+        previous_position_destination = destination.pos;
+        frames = 0;
+        score = 0;
+        game_state = GAME_PLAY;
+      }
+    } else {
+      if (IsKeyPressed(KEY_SPACE)) {
+        game_state = GAME_PLAY;
+      }
     }
 
     BeginDrawing();
     ClearBackground(BLACK);
 
-    for (size_t y = 0; y < col - 1; y++) {
-      for (size_t x = 0; x < row; x++) {
-        DrawRectangle(x * window.scale, y * window.scale, window.scale - 1,
-                      window.scale - 1, RAYWHITE);
+    if (game_state == GAME_PLAY || game_state == GAME_PAUSE) {
+      for (size_t y = 0; y < col - 1; y++) {
+        for (size_t x = 0; x < row; x++) {
+          DrawRectangle(x * window.scale, y * window.scale, window.scale - 1,
+                        window.scale - 1, RAYWHITE);
+        }
       }
-    }
-    DrawRectangle(food.y * window.scale, food.x * window.scale,
-                  window.scale - 1, window.scale - 1, RED);
-    DrawRectangle(enemy.pos.y * window.scale, enemy.pos.x * window.scale,
-                  window.scale - 1, window.scale - 1, PINK);
-    DrawRectangle(destination.pos.y * window.scale,
-                  destination.pos.x * window.scale, window.scale - 1,
-                  window.scale - 1, GREEN);
 
-    DrawText(TextFormat("Score: %d", score), 0, (col - 1) * window.scale,
-             window.font_size, RAYWHITE);
-    DrawText("movement: (w, a, s, d)", (row - differ_row) * window.scale,
-             (col - 1) * window.scale, window.font_size, RAYWHITE);
+      DrawRectangle(food.y * window.scale, food.x * window.scale,
+                    window.scale - 1, window.scale - 1, RED);
+      DrawRectangle(enemy.pos.y * window.scale, enemy.pos.x * window.scale,
+                    window.scale - 1, window.scale - 1, PINK);
+      DrawRectangle(destination.pos.y * window.scale,
+                    destination.pos.x * window.scale, window.scale - 1,
+                    window.scale - 1, GREEN);
+
+      DrawText(TextFormat("Score: %d", score), 0, (col - 1) * window.scale,
+               window.font_size, RAYWHITE);
+      if (game_state == GAME_PAUSE) {
+        DrawText("PAUSED", (row / 2) * window.scale, (col / 2) * window.scale,
+                 25, BLACK);
+      }
+      DrawText("movement: (w, a, s, d)", (row - differ_row) * window.scale,
+               (col - 1) * window.scale, window.font_size, RAYWHITE);
+    } else {
+      DrawRectangle(0, 0, window.width, window.height, GREEN);
+      DrawText("GAME OVER", (row / 2 - 3) * window.scale,
+               (col / 2 - 3) * window.scale, 50, DARKGREEN);
+      DrawText(TextFormat("SCORE: %d", score), (row / 2) * window.scale,
+               (col / 2) * window.scale, 20, DARKGREEN);
+      DrawText("PRESS ENTER TO RETRY", (row / 2 - 2) * window.scale,
+               (col / 2 - 1) * window.scale, 20, DARKGREEN);
+    }
+
     EndDrawing();
   }
 
