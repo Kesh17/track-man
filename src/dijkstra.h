@@ -1,10 +1,8 @@
 #ifndef DIJKSTRA_H
 #define DIJKSTRA_H
 
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <raylib.h>
 
 typedef struct {
   int x;
