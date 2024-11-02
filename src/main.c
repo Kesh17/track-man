@@ -291,6 +291,7 @@ int main(void) {
     EndDrawing();
   }
 
+  free(adjacency_matrix);
   free(return_pos);
 
   CloseWindow();
