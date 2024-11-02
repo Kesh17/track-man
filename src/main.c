@@ -103,7 +103,7 @@ static bool entity_collision(Entity *entity, Pos *entity2) {
 }
 
 int main(void) {
-  const Window window = {600, 600, 40, 60, "pac-man", 25};
+  const Window window = {600, 600, 40, 60, "track-man", 25};
   InitWindow(window.width, window.height, window.title);
   SetTargetFPS(window.fps);
 
