@@ -1,7 +1,14 @@
 #include "dijkstra.h"
 #include "raylib.h"
-#include <iso646.h>
 #include <stdbool.h>
+#include <stdlib.h>
+
+#ifdef DBG
+#define log(fmt, args...)                                                      \
+  fprintf(stderr, "%s:%d: " fmt "\n", __FILE_NAME__, __LINE__, ##args)
+#else
+#define log(fmt, args...)
+#endif
 
 typedef struct {
   const int width;
@@ -19,7 +26,7 @@ typedef struct {
   Vector2 velocity;
 } Entity;
 
-static Pos food_position_generator(const int row, const int col) {
+static Pos position_generator(const int row, const int col) {
   int x = GetRandomValue(0, row - 2);
   int y = GetRandomValue(0, col - 2);
 
@@ -45,29 +52,29 @@ static void movement_logic(Entity *pos) {
 static bool wall_collision(const int row, const int col, Entity *entity) {
   if (entity->velocity.y == 1) {
     if (entity->pos.y >= col - 1) {
-      printf("collide y(%d %d) (%f %f) row: %d col:%d\n", entity->pos.x,
-             entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
+      log("collided in y(%d %d) (%.1f %.1f) row: %d col:%d", entity->pos.x,
+          entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
       return true;
     }
   }
   if (entity->velocity.y == -1) {
     if (entity->pos.y <= 0) {
-      printf("collide y(%d %d) (%f %f) row: %d col:%d\n", entity->pos.x,
-             entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
+      log("collided in -y(%d %d) (%.1f %.1f) row: %d col:%d", entity->pos.x,
+          entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
       return true;
     }
   }
   if (entity->velocity.x == 1) {
     if (entity->pos.x >= col - 2) {
-      printf("collide x(%d %d) (%f %f) row: %d col:%d\n", entity->pos.x,
-             entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
+      log("collided in -x(%d %d) (%.1f %.1f) row: %d col:%d", entity->pos.x,
+          entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
       return true;
     }
   }
   if (entity->velocity.x == -1) {
     if (entity->pos.x <= 0) {
-      printf("collide x(%d %d) (%f %f) row: %d col:%d\n", entity->pos.x,
-             entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
+      log("collide in x(%d %d) (%f %f) row: %d col:%d", entity->pos.x,
+          entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
       return true;
     }
   }
@@ -77,6 +84,8 @@ static bool wall_collision(const int row, const int col, Entity *entity) {
 
 static bool food_collision(Pos *food, Entity *entity) {
   if (food->x == entity->pos.x && food->y == entity->pos.y) {
+    log("collide with food at:(%d, %d) (%d, %d)", food->x, food->y,
+        entity->pos.x, entity->pos.y);
     return true;
   }
   return false;
@@ -84,41 +93,44 @@ static bool food_collision(Pos *food, Entity *entity) {
 
 static bool entity_collision(Entity *entity, Entity *entity2) {
   if (entity->pos.x == entity2->pos.x && entity->pos.y == entity2->pos.y) {
-    printf("collide entities game over(%d %d) (%d %d)\n", entity->pos.x,
-           entity->pos.y, entity2->pos.x, entity2->pos.y);
+    log("entities collided at:(%d %d) (%d %d) game over", entity->pos.x,
+        entity->pos.y, entity2->pos.x, entity2->pos.y);
     return true;
   }
   return false;
 }
 
 int main(void) {
-  static const Window window = {800, 800, 40, 60, "pac-man", 25};
+  const Window window = {600, 600, 40, 60, "pac-man", 25};
   InitWindow(window.width, window.height, window.title);
   SetTargetFPS(window.fps);
 
-  static const int row = window.width / window.scale;
-  static const int col = window.height / window.scale;
+  const int row = window.width / window.scale;
+  const int col = window.height / window.scale;
 
-  static Entity enemy = {{0, 0}, {0, 0}};
+  Entity enemy = {{0, 0}, {0, 0}};
 
-  int *grid = (int *)malloc((row * col) * sizeof(int));
+  int grid[row * col];
   for (int i = 0; i < row; i++) {
     for (int j = 0; j < col; j++) {
       grid[(i * row + j)] = 1;
     }
   }
 
-  static const int new_row = row * col;
-  static const int new_col = row * col;
+  const int new_row = row * col;
+  const int new_col = row * col;
 
-  int *adjacency_matrix = (int *)calloc((new_col * new_row), sizeof(int));
+  int *adjacency_matrix = (int *)calloc(sizeof(int), new_col * new_row);
+  if (adjacency_matrix == NULL) {
+    log("error creating adjacency matrix");
+  }
   convert_to_adjacent(grid, adjacency_matrix, row, col);
   // print_arr(adjacency_matrix, new_row, new_col);
 
-  int *djcomp_matrix = (int *)calloc((new_col * new_row), sizeof(int));
-  // const Pos source = {0, 0};
-  static Pos pos[new_col];
-  static int previous[row * col];
+  int djcomp_matrix[new_col * new_row];
+
+  Pos pos[new_col];
+  int previous[row * col];
   int count = 0;
   for (int i = 0; i < row; i++) {
     for (int j = 0; j < col; j++) {
@@ -126,35 +138,35 @@ int main(void) {
       count++;
     }
   }
+
   dijkstra(djcomp_matrix, row, col, adjacency_matrix, &enemy.pos, pos,
            previous);
-  // print_arr(djcomp_matrix, new_row, new_col);
   Entity destination = {{8, 8}, {0, 0}};
 
   int return_index;
   Pos *return_pos =
       path(new_col, pos, &destination.pos, previous, &enemy.pos, &return_index);
-  // for (int i = 0; i < return_index; i++) {
-  //   printf("(%d %d)", return_pos[i].x, return_pos[i].y);
-  // }
-  // printf("\n");
+if (return_pos == NULL) {
+   log("error creating return positions array");
+}
+
   int enemy_arr_index = 0;
   float enemy_movement_timer = 0.0f;
   float enemy_movement_delay = 0.051f;
 
   Pos previous_position_destination = destination.pos;
   int frames = 0;
-  static int score = 0;
+  int score = 0;
 
-  const char instruction[] = "pause: space, movement: (w, a, s, d)";
+  const char instruction[] = " pause: space  movement: (w, a, s, d)";
   const size_t size_instruction = sizeof(instruction) / sizeof(char);
-  static const int differ_row =
+  const int differ_row =
       size_instruction /
       3; // as one scale can contain 3 letter (dont forget this reason)
 
   Pos food = {5, 5};
 
-  GameState game_state = GAME_PLAY;
+  GameState game_state = GAME_PAUSE;
 
   while (!WindowShouldClose()) {
 
@@ -163,10 +175,11 @@ int main(void) {
       if (IsKeyPressed(KEY_SPACE)) {
         game_state = GAME_PAUSE;
       }
+
       float delta_time = GetFrameTime();
       frames++;
-
       enemy_movement_timer += delta_time;
+
       movement_logic(&destination);
 
       if (wall_collision(row, col, &destination)) {
@@ -178,7 +191,7 @@ int main(void) {
       }
 
       if (food_collision(&food, &destination)) {
-        food = food_position_generator(row, col);
+        food = position_generator(row, col);
         score++;
       }
 
@@ -199,22 +212,25 @@ int main(void) {
         enemy_arr_index = 0;
         dijkstra(djcomp_matrix, row, col, adjacency_matrix, &enemy.pos, pos,
                  previous);
+        free(return_pos);
         return_pos = path(new_col, pos, &destination.pos, previous, &enemy.pos,
                           &return_index);
         previous_position_destination = destination.pos;
       }
     } else if (game_state == GAME_OVER) {
       if (IsKeyPressed(KEY_ENTER)) {
-        enemy = (Entity){{0, 0}, {0, 0}};
+        enemy.pos = position_generator(row, col);
         dijkstra(djcomp_matrix, row, col, adjacency_matrix, &enemy.pos, pos,
                  previous);
-        destination = (Entity){{8, 8}, {0, 0}};
+        destination.pos = position_generator(row, col);
+        free(return_pos);
         return_pos = path(new_col, pos, &destination.pos, previous, &enemy.pos,
                           &return_index);
         previous_position_destination = destination.pos;
+        food = position_generator(row, col);
         frames = 0;
         score = 0;
-        game_state = GAME_PLAY;
+        game_state = GAME_PAUSE;
       }
     } else {
       if (IsKeyPressed(KEY_SPACE)) {
@@ -226,13 +242,7 @@ int main(void) {
     ClearBackground(BLACK);
 
     if (game_state == GAME_PLAY || game_state == GAME_PAUSE) {
-      for (size_t y = 0; y < col - 1; y++) {
-        for (size_t x = 0; x < row; x++) {
-          DrawRectangle(x * window.scale, y * window.scale, window.scale - 1,
-                        window.scale - 1, RAYWHITE);
-        }
-      }
-
+      DrawRectangle(0, 0, window.width, window.height, RAYWHITE);
       DrawRectangle(food.y * window.scale, food.x * window.scale,
                     window.scale - 1, window.scale - 1, RED);
       DrawRectangle(enemy.pos.y * window.scale, enemy.pos.x * window.scale,
@@ -240,14 +250,21 @@ int main(void) {
       DrawRectangle(destination.pos.y * window.scale,
                     destination.pos.x * window.scale, window.scale - 1,
                     window.scale - 1, GREEN);
+      DrawRectangle(0, (col - 1) * window.scale, window.width, window.scale,
+                    BLACK);
 
       DrawText(TextFormat("Score: %d", score), 0, (col - 1) * window.scale,
                window.font_size, RAYWHITE);
+
       if (game_state == GAME_PAUSE) {
-        DrawText("PAUSED", (row / 2) * window.scale, (col / 2) * window.scale,
-                 25, BLACK);
+        DrawRectangle((row / 2) * window.scale, (col / 2 - 2) * window.scale,
+                      window.scale - 10, window.scale * 2, BLACK);
+        DrawRectangle((row / 2 + 1) * window.scale,
+                      (col / 2 - 2) * window.scale, window.scale - 10,
+                      window.scale * 2, BLACK);
       }
-      DrawText("movement: (w, a, s, d)", (row - differ_row) * window.scale,
+
+      DrawText(instruction, (row - differ_row) * window.scale,
                (col - 1) * window.scale, window.font_size, RAYWHITE);
     } else {
       DrawRectangle(0, 0, window.width, window.height, GREEN);
@@ -262,9 +279,6 @@ int main(void) {
     EndDrawing();
   }
 
-  free(grid);
-  free(djcomp_matrix);
-  free(adjacency_matrix);
   free(return_pos);
 
   CloseWindow();

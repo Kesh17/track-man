@@ -1,5 +1,14 @@
 #include "dijkstra.h"
 #include <limits.h>
+#include <stdio.h>
+
+#ifdef DBG
+#define log(fmt, args...)                                                      \
+  fprintf(stderr, "%s:%d: " fmt, __FILE_NAME__, __LINE__, ##args)
+#else
+#define log(fmt, args...)
+#endif
+
 
 static int min_index(int *djcomp_matrix, int *visited, int row,
                      const int iter_value) {
@@ -54,6 +63,10 @@ void dijkstra(int *djcomp_matrix, const int o_row, const int o_col,
               int *adjacency_matrix, const Pos *source, Pos *pos,
               int *previous) {
   int *visited = (int *)calloc((o_col * o_row), sizeof(int));
+  if (visited == NULL) {
+     log("error creating visited array\n");
+     return;
+  }
   int row = 0, col, min;
   const int max = o_col * o_row;
   for (int i = 0; i < max; i++) {
@@ -92,10 +105,14 @@ void dijkstra(int *djcomp_matrix, const int o_row, const int o_col,
 }
 
 Pos *path(const int iter_value, Pos *vertex, const Pos *dest_vertex,
-          int *previous, const Pos *source __attribute__((unused)), int *return_index) {
+          int *previous, const Pos *source __attribute__((unused)),
+          int *return_index) {
 
   int dest_index = -1;
   Pos *return_pos = (Pos *)malloc(sizeof(Pos) * iter_value);
+  if (return_pos == NULL) {
+     log("error creating return position array\n") ;
+  }
   for (int i = 0; i < iter_value; i++) {
     if (vertex[i].x == dest_vertex->x && vertex[i].y == dest_vertex->y) {
       dest_index = i;
@@ -104,27 +121,29 @@ Pos *path(const int iter_value, Pos *vertex, const Pos *dest_vertex,
   }
 
   if (dest_index == -1) {
-    printf("Destination not found.\n");
+    log("destination not found destination_index = %d\n",dest_index);
     return NULL;
   }
 
   int current = dest_index;
-  // printf("Shortest path from (%d, %d) to (%d, %d) : ", source->x, source->y,
-  //        dest_vertex->x, dest_vertex->y);
+   log("shortest path from source: (%d, %d) to destination: (%d, %d) : \n", source->x, source->y,
+        dest_vertex->x, dest_vertex->y);
   if (previous[current] == -1) {
-    printf("No path found.\n");
+    log("already at the source as no path found.\n");
   } else {
     int path[iter_value], path_index = 0;
     while (current != -1) {
       path[path_index++] = current;
       current = previous[current];
     }
+    log("return position array elements: \n");
     for (int i = path_index - 1, j = 0; i >= 0; i--, j++) {
-      // printf("(%d, %d) ", vertex[path[i]].x, vertex[path[i]].y);
+      log("(%d, %d) \n", vertex[path[i]].x, vertex[path[i]].y);
       return_pos[j].y = vertex[path[i]].y;
       return_pos[j].x = vertex[path[i]].x;
     }
     *return_index = path_index;
+    log("return positions array length: %d\n", *return_index);
   }
   return return_pos;
 }
