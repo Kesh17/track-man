@@ -54,28 +54,28 @@ static void movement_logic(Entity *pos) {
 static bool wall_collision(const int row, const int col, Entity *entity) {
   if (entity->velocity.y == 1) {
     if (entity->pos.y >= col - 1) {
-      log("collided in y(%d %d) (%.1f %.1f) row: %d col:%d\n", entity->pos.x,
+      log("wall collision y(%d %d) (%.1f %.1f) row: %d col:%d\n", entity->pos.x,
           entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
       return true;
     }
   }
   if (entity->velocity.y == -1) {
     if (entity->pos.y <= 0) {
-      log("collided in -y(%d %d) (%.1f %.1f) row: %d col:%d\n", entity->pos.x,
+      log("wall collision -y(%d %d) (%.1f %.1f) row: %d col:%d\n", entity->pos.x,
           entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
       return true;
     }
   }
   if (entity->velocity.x == 1) {
     if (entity->pos.x >= col - 2) {
-      log("collided in -x(%d %d) (%.1f %.1f) row: %d col:%d\n", entity->pos.x,
+      log("wall collided -x(%d %d) (%.1f %.1f) row: %d col:%d\n", entity->pos.x,
           entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
       return true;
     }
   }
   if (entity->velocity.x == -1) {
     if (entity->pos.x <= 0) {
-      log("collide in x(%d %d) (%f %f) row: %d col:%d\n", entity->pos.x,
+      log("wall collision x(%d %d) (%.1f %f) row: %d col:%.1d\n", entity->pos.x,
           entity->pos.y, entity->velocity.x, entity->velocity.y, row, col);
       return true;
     }
@@ -86,7 +86,7 @@ static bool wall_collision(const int row, const int col, Entity *entity) {
 
 static bool food_collision(Pos *food, Entity *entity) {
   if (food->x == entity->pos.x && food->y == entity->pos.y) {
-    log("collide with food at:(%d, %d) (%d, %d)\n", food->x, food->y,
+    log("collision with food at:(%d, %d) (%d, %d)\n", food->x, food->y,
         entity->pos.x, entity->pos.y);
     return true;
   }
@@ -103,29 +103,31 @@ static bool entity_collision(Entity *entity, Pos *entity2) {
 }
 
 int main(void) {
-  const Window window = {600, 600, 40, 60, "track-man", 25};
+  const Window window = {800, 800, 40, 60, "track-man", 25};
   InitWindow(window.width, window.height, window.title);
   SetTargetFPS(window.fps);
 
   const int row = window.width / window.scale;
   const int col = window.height / window.scale;
 
-  Pos enemy = {0, 0};
-
-  int grid[row * col];
-  for (int i = 0; i < row; i++) {
-    for (int j = 0; j < col; j++) {
-      grid[(i * row + j)] = 1;
-    }
-  }
-
   const int new_row = row * col;
   const int new_col = row * col;
 
+  Pos pos[new_col];
+  Pos enemy = {0, 0};
+  int grid[row * col];
+
   log("window details:\n\t resoultion: %dx%d, scale: %d, fps: %d, title: %s, "
-      "font-size: %d, row: %d, col: %d\n, new-row: %d, new-col: %d",
+      "font-size: %d, row: %d, col: %d, new-row: %d, new-col: %d\n",
       window.width, window.height, window.scale, window.fps, window.title,
       window.font_size, row, col, new_row, new_col);
+
+  for (int i = 0, count = 0; i < row; i++) {
+    for (int j = 0; j < col; j++, count++) {
+      grid[(i * row + j)] = 1;
+      pos[count] = (Pos){i, j};
+    }
+  }
 
   int *adjacency_matrix = (int *)calloc(sizeof(int), new_col * new_row);
   if (adjacency_matrix == NULL) {
@@ -134,22 +136,9 @@ int main(void) {
   convert_to_adjacent(grid, adjacency_matrix, row, col);
 
   int djcomp_matrix[new_col * new_row];
-
-  Pos pos[new_col];
   int previous[row * col];
-  for (int i = 0, count = 0; i < row; i++) {
-    for (int j = 0; j < col; j++, count++) {
-      pos[count] = (Pos){i, j};
-    }
-  }
-#ifdef DBG
-  log("positon container array: ");
-  for (int i = 0; i < new_row; i++) {
-    log_("(%d, %d)", pos[i].x, pos[i].y);
-  }
-  log_("\n");
-#endif
   dijkstra(djcomp_matrix, row, col, adjacency_matrix, &enemy, pos, previous);
+
   Entity destination = {{8, 8}, {0, 0}};
 
   int return_index;
@@ -232,7 +221,7 @@ int main(void) {
         dijkstra(djcomp_matrix, row, col, adjacency_matrix, &enemy, pos,
                  previous);
         destination.pos = position_generator(row, col);
-        destination.velocity = (Vector2){0,0};
+        destination.velocity = (Vector2){0, 0};
         free(return_pos);
         return_pos = path(new_col, pos, &destination.pos, previous, &enemy,
                           &return_index);
@@ -245,7 +234,7 @@ int main(void) {
         enemy_arr_index = 0;
       }
     } else {
-        if (IsKeyPressed(KEY_SPACE)) {
+      if (IsKeyPressed(KEY_SPACE)) {
         game_state = GAME_PLAY;
       }
     }

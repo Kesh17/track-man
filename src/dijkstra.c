@@ -127,7 +127,7 @@ Pos *path(const int iter_value, Pos *vertex, const Pos *dest_vertex,
   }
 
   int current = dest_index;
-  log("shortest path from source: (%d, %d) to destination: (%d, %d) : \n",
+  log("shortest path from source: (%d, %d) to destination: (%d, %d): ",
       source->x, source->y, dest_vertex->x, dest_vertex->y);
   if (previous[current] == -1) {
     log("already at the source as no path found.\n");
@@ -137,7 +137,6 @@ Pos *path(const int iter_value, Pos *vertex, const Pos *dest_vertex,
       path[path_index++] = current;
       current = previous[current];
     }
-    log("return position array elements: ");
     for (int i = path_index - 1, j = 0; i >= 0; i--, j++) {
       log_("(%d, %d) ", vertex[path[i]].x, vertex[path[i]].y);
       return_pos[j].y = vertex[path[i]].y;
